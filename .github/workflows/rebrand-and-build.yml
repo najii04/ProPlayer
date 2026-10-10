@@ -121,9 +121,6 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
@@ -135,22 +132,21 @@ jobs:
           ./gradlew assembleDebug -x verifyI18nLiterals --stacktrace
 
       - name: Find APK files
-        id: find-apks
         shell: bash
         run: |
           set -euo pipefail
 
           mkdir -p /tmp/proplayer-apks
 
-          find app/build/outputs/apk -type f -name '*.apk' -print
+          echo "Searching for generated APK files..."
+          find . -type f -path '*/build/outputs/apk/*' -name '*.apk' -print
 
-          find app/build/outputs/apk -type f -name '*.apk' \
+          find . -type f -path '*/build/outputs/apk/*' -name '*.apk' \
             -exec cp {} /tmp/proplayer-apks/ \;
 
           if ! find /tmp/proplayer-apks -maxdepth 1 -type f -name '*.apk' | grep -q .; then
             echo "No APK files were generated."
-            echo "Listing app build output directories:"
-            find app/build/outputs -maxdepth 5 -type f -print || true
+            find . -type f -path '*/build/outputs/*' -print || true
             exit 1
           fi
 
