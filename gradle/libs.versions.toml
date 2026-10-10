@@ -36,7 +36,7 @@ paging = "3.5.1"
 media3 = "1.11.1"
 
 # Installs the APK's merged baseline profiles (Compose/Media3/library-shipped) into ART at
-# install/boot time. Essential for a sideloaded app: without it, baseline profiles only ever
+# install/boot time. Essential for a sideloaded app: without this, baseline profiles only ever
 # reach devices through Play cloud profiles, which OwnTV doesn't have.
 profileinstaller = "1.4.1"
 
@@ -79,7 +79,7 @@ espressoCore = "3.7.0"
 # Both artifacts always ship on the same version; never split them. Bumping this is how the TV app
 # takes a core change. For local work, owntv.corePath in ~/.gradle/gradle.properties substitutes
 # core's source for these artifacts, and this number is then ignored.
-owntvCore = "1.0.64"
+owntvCore = "1.0.65"
 
 [libraries]
 # The shared engine, from its own repository
@@ -119,7 +119,7 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 # WorkManager (durable background sync)
 androidx-work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 
-# Room (database) + Paging
+# Room (Database) + Paging
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-paging = { group = "androidx.room", name = "room-paging", version.ref = "room" }
@@ -128,7 +128,7 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 androidx-paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }
 androidx-paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "paging" }
 
-# Baseline profile installer (AOT-compiles hot paths from bundled profiles on sideloaded installs)
+# Baseline profile installer (AOT-compiles hot paths from bundled profiles)
 androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
 
@@ -139,15 +139,15 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 
-# QR code generation (Remote companion add-source) — encodes the LAN URL into a scannable bitmap.
+# QR code generation (Remote companion add-source flow)
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 
-# Charset detection for local subtitle files (subtitle plan §7.2 / review R6).
+# Charset detection (local subtitle files)
 juniversalchardet = { group = "com.github.albfernandez", name = "juniversalchardet", version.ref = "juniversalchardet" }
 
 # Networking (M3U/Xtream fetch)
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
-# In-app YouTube trailer playback (WebView IFrame wrapper) — plan §7.3; ToS-clean, exposes currentSecond/duration
+# In-app YouTube trailer playback
 youtube-player = { group = "com.pierfrancescosoffritti.androidyoutubeplayer", name = "core", version.ref = "youtubePlayer" }
 
 # Media3 / ExoPlayer
@@ -156,7 +156,6 @@ androidx-media3-exoplayer-hls = { group = "androidx.media3", name = "media3-exop
 androidx-media3-exoplayer-dash = { group = "androidx.media3", name = "media3-exoplayer-dash", version.ref = "media3" }
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 androidx-media3-datasource-okhttp = { group = "androidx.media3", name = "media3-datasource-okhttp", version.ref = "media3" }
-
 
 # Dependency injection
 koin-bom = { group = "io.insert-koin", name = "koin-bom", version.ref = "koin" }
@@ -178,7 +177,6 @@ android-library = { id = "com.android.library", version.ref = "agp" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 # KSP 2.3.6+ supports AGP 9's built-in Kotlin.
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
-# Baseline profiles (audit ST1): the test module records the journey, the app module consumes the
-# generated profile and packages it as baseline.prof.
+# Baseline profiles (audit ST1): the test module records the journey, the app module consumes the generated profile and packages it as baseline.prof.
 android-test = { id = "com.android.test", version.ref = "agp" }
 baselineprofile = { id = "androidx.baselineprofile", version.ref = "benchmark" }
