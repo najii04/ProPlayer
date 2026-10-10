@@ -1,4 +1,4 @@
-name: Import OwnTV Source
+name: Rebrand and Build Pro Player
 
 on:
   workflow_dispatch:
@@ -7,35 +7,77 @@ permissions:
   contents: write
 
 jobs:
-  import:
+  rebrand:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout ProPlayer
         uses: actions/checkout@v4
 
-      - name: Download OwnTV source
+      - name: Extract modified source ZIP
         run: |
           set -e
 
-          curl -fL \
-            https://github.com/ahXN00/OwnTV/archive/refs/tags/v5.1.0.zip \
-            -o /tmp/owntv.zip
+          ZIP="ProPlayer-rebranded-source.zip"
+          test -f "$ZIP"
 
-          mkdir -p /tmp/source
-          unzip -q /tmp/owntv.zip -d /tmp/source
+          mkdir -p /tmp/rebranded
+          unzip -q "$ZIP" -d /tmp/rebranded
 
-          SRC="$(find /tmp/source -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-          test -n "$SRC"
+          ROOT="$(find /tmp/rebranded -name settings.gradle.kts -type f -print -quit)"
+          test -n "$ROOT"
 
-          rsync -a --exclude='.github/workflows/' "$SRC"/ ./
+          SRC="$(dirname "$ROOT")"
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.github/workflows/' \
+            "$SRC"/ ./
 
-          git add -A
+      - name: Update branding references
+        run: |
+          set -e
 
-          if ! git diff --cached --quiet; then
-            git commit -m "Import OwnTV v5.1.0 source"
-            git push
-          fi
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path(".")
+          for p in root.rglob("*"):
+              if not p.is_file() or ".git" in p.parts:
+                  continue
+              if any(part.startswith("build") for part in p.parts):
+                  continue
+              try:
+                  text = p.read_text(encoding="utf-8")
+              except (UnicodeDecodeError, OSError):
+                  continue
+
+              updated = text.replace(
+                  "https://t.me/owntv",
+                  "https://t.me/promaxsatdz"
+              ).replace(
+                  "https://github.com/ahXN00/OwnTV",
+                  "https://github.com/najii04/ProPlayer"
+              )
+
+              if updated != text:
+                  p.write_text(updated, encoding="utf-8")
+          PY
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build debug APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProPlayer-debug
+          path: "**/build/outputs/apk/debug/*.apk"
+          if-no-files-found: error
