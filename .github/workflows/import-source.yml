@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Checkout ProPlayer
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Extract modified source ZIP
         run: |
@@ -65,7 +65,7 @@ jobs:
           PY
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
@@ -76,7 +76,7 @@ jobs:
           ./gradlew assembleDebug -x verifyI18nLiterals
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ProPlayer-debug
           path: "**/build/outputs/apk/debug/*.apk"
