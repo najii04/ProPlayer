@@ -17,18 +17,13 @@ steps:
   - name: Extract modified source ZIP
     run: |
       set -e
-
       ZIP="ProPlayer-rebranded-source.zip"
       test -f "$ZIP"
-
       mkdir -p /tmp/rebranded
       unzip -q "$ZIP" -d /tmp/rebranded
-
       ROOT="$(find /tmp/rebranded -name settings.gradle.kts -type f -print -quit)"
       test -n "$ROOT"
-
       SRC="$(dirname "$ROOT")"
-
       rsync -a --delete \
         --exclude='.git/' \
         --exclude='.github/workflows/' \
@@ -39,13 +34,11 @@ steps:
       set -e
       FILE="app/src/main/java/tv/own/owntv/ui/components/BrandLockup.kt"
       test -f "$FILE"
-
       python3 - <<'PY'
       from pathlib import Path
 
       p = Path("app/src/main/java/tv/own/owntv/ui/components/BrandLockup.kt")
       text = p.read_text(encoding="utf-8")
-
       text = text.replace("import androidx.compose.material3.Text\n", "")
       text = text.replace("import androidx.compose.ui.text.font.FontWeight\n", "")
       text = text.replace("import androidx.compose.ui.unit.sp\n", "")
@@ -53,7 +46,7 @@ steps:
       start = text.index("    Box(\n", text.index("fun Wordmark("))
       end = text.index("\n}\n", start)
 
-      replacement = '''    Box(modifier.width(width).height(width * 182f / 988f)) {
+      replacement = """    Box(modifier.width(width).height(width * 182f / 988f)) {
     Image(
         painterResource(R.drawable.owntv_wordmark_own),
         contentDescription = null,
@@ -66,7 +59,7 @@ steps:
         modifier = Modifier.fillMaxSize(),
         colorFilter = ColorFilter.tint(tv),
     )
-  }'''
+}"""
 
       text = text[:start] + replacement + text[end:]
       p.write_text(text, encoding="utf-8")
