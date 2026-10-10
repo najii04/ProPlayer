@@ -1,4 +1,116 @@
 
+name: Rebrand and Build Pro Player
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  rebrand:
+    name: Build Pro Player APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout ProPlayer
+        uses: actions/checkout@v4
+
+      - name: Extract modified source ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ZIP="ProPlayer-rebranded-source.zip"
+          test -f "$ZIP"
+
+          mkdir -p /tmp/rebranded
+          unzip -q "$ZIP" -d /tmp/rebranded
+
+          ROOT="$(find /tmp/rebranded -name settings.gradle.kts -type f -print -quit)"
+          test -n "$ROOT"
+
+          SRC="$(dirname "$ROOT")"
+
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.github/workflows/' \
+            "$SRC"/ ./
+
+      - name: Fix Pro Player wordmark
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          FILE="$(find app/src/main/java -name BrandLockup.kt -type f -print -quit)"
+          test -n "$FILE"
+
+          python3 - "$FILE" <<'PY'
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          text = path.read_text(encoding="utf-8")
+
+          text = text.replace("OwnTV", "Pro Player")
+          text = text.replace("Own Tv", "Pro Player")
+          text = text.replace("Own tv", "Pro Player")
+
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Update branding references
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          roots = [
+              Path("app/src/main"),
+              Path("README.md"),
+          ]
+
+          replacements = {
+              "https://t.me/owntv": "https://t.me/promaxsatdz",
+              "https://github.com/ahXN00/OwnTV": "https://github.com/najii04/ProPlayer",
+          }
+
+          extensions = {
+              ".kt", ".java", ".xml", ".json", ".md",
+              ".txt", ".properties", ".gradle", ".kts",
+          }
+
+          for root in roots:
+              if root.is_file():
+                  files = [root]
+              elif root.exists():
+                  files = [
+                      p for p in root.rglob("*")
+                      if p.is_file() and p.suffix in extensions
+                  ]
+              else:
+                  continue
+
+              for path in files:
+                  try:
+                      content = path.read_text(encoding="utf-8")
+                  except (UnicodeDecodeError, OSError):
+                      continue
+
+                  updated = content
+                  for old, new in replacements.items():
+                      updated = updated.replace(old, new)
+
+                  if updated != content:
+                      path.write_text(updated, encoding="utf-8")
+                      print(f"Updated: {path}")
+          PY
+
       - name: Derive the release edge key
         env:
           OWNTV_EDGE_MASTER: ${{ secrets.OWNTV_EDGE_MASTER }}
@@ -7,16 +119,60 @@
         shell: bash
         run: |
           set -euo pipefail
+
           if [ -n "$OWNTV_EDGE_MASTER" ]; then
-            KEY=$(printf '%s' "$VERSION_NAME" \
+            KEY="$(printf '%s' "$VERSION_NAME" \
               | openssl dgst -sha256 -hmac "$OWNTV_EDGE_MASTER" -hex \
-              | awk '{print $NF}')
+              | awk '{print $NF}')"
+
             echo "::add-mask::$KEY"
             echo "OWNTV_EDGE_KEY=$KEY" >> "$GITHUB_ENV"
+
+            echo "Derived edge key from the configured master secret."
+
           elif [ -n "$OWNTV_EDGE_KEY" ]; then
             echo "::add-mask::$OWNTV_EDGE_KEY"
             echo "OWNTV_EDGE_KEY=$OWNTV_EDGE_KEY" >> "$GITHUB_ENV"
+
+            echo "Using the configured static edge key."
+
           else
-            echo "No edge key configured; using the default base URL."
+            echo "No edge secret configured; using the default base URL."
           fi
-          
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew assembleDebug -x verifyI18nLiterals --stacktrace
+
+      - name: Find APK files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p artifacts
+
+          find app/build/outputs/apk -type f -name '*.apk' \
+            -exec cp {} artifacts/ \;
+
+          test -n "$(find artifacts -type f -name '*.apk' -print -quit)"
+
+          ls -lh artifacts/
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProPlayer-APK
+          path: artifacts/*.apk
+          if-no-files-found: error
