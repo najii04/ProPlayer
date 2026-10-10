@@ -1,83 +1,120 @@
 name: Rebrand and Build Pro Player
 
 on:
-  workflow_dispatch:
+workflow_dispatch:
 
 permissions:
-  contents: write
+contents: write
 
 jobs:
-  rebrand:
-    runs-on: ubuntu-latest
+rebrand:
+runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout ProPlayer
-        uses: actions/checkout@v4
+steps:
+  - name: Checkout ProPlayer
+    uses: actions/checkout@v4
 
-      - name: Extract modified source ZIP
-        run: |
-          set -e
+  - name: Extract modified source ZIP
+    run: |
+      set -e
 
-          ZIP="ProPlayer-rebranded-source.zip"
-          test -f "$ZIP"
+      ZIP="ProPlayer-rebranded-source.zip"
+      test -f "$ZIP"
 
-          mkdir -p /tmp/rebranded
-          unzip -q "$ZIP" -d /tmp/rebranded
+      mkdir -p /tmp/rebranded
+      unzip -q "$ZIP" -d /tmp/rebranded
 
-          ROOT="$(find /tmp/rebranded -name settings.gradle.kts -type f -print -quit)"
-          test -n "$ROOT"
+      ROOT="$(find /tmp/rebranded -name settings.gradle.kts -type f -print -quit)"
+      test -n "$ROOT"
 
-          SRC="$(dirname "$ROOT")"
+      SRC="$(dirname "$ROOT")"
 
-          rsync -a --delete \
-            --exclude='.git/' \
-            --exclude='.github/workflows/' \
-            "$SRC"/ ./
+      rsync -a --delete \
+        --exclude='.git/' \
+        --exclude='.github/workflows/' \
+        "$SRC"/ ./
 
-      - name: Update branding references
-        run: |
-          set -e
+  - name: Fix Pro Player wordmark
+    run: |
+      set -e
+      FILE="app/src/main/java/tv/own/owntv/ui/components/BrandLockup.kt"
+      test -f "$FILE"
 
-          python3 - <<'PY'
-          from pathlib import Path
+      python3 - <<'PY'
+      from pathlib import Path
 
-          root = Path(".")
-          for p in root.rglob("*"):
-              if not p.is_file() or ".git" in p.parts:
-                  continue
-              if any(part.startswith("build") for part in p.parts):
-                  continue
-              try:
-                  text = p.read_text(encoding="utf-8")
-              except (UnicodeDecodeError, OSError):
-                  continue
+      p = Path("app/src/main/java/tv/own/owntv/ui/components/BrandLockup.kt")
+      text = p.read_text(encoding="utf-8")
 
-              updated = text.replace(
-                  "https://t.me/owntv",
-                  "https://t.me/promaxsatdz"
-              ).replace(
-                  "https://github.com/ahXN00/OwnTV",
-                  "https://github.com/najii04/ProPlayer"
-              )
+      text = text.replace("import androidx.compose.material3.Text\n", "")
+      text = text.replace("import androidx.compose.ui.text.font.FontWeight\n", "")
+      text = text.replace("import androidx.compose.ui.unit.sp\n", "")
 
-              if updated != text:
-                  p.write_text(updated, encoding="utf-8")
-          PY
+      start = text.index("    Box(\n", text.index("fun Wordmark("))
+      end = text.index("\n}\n", start)
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
+      replacement = '''    Box(modifier.width(width).height(width * 182f / 988f)) {
+    Image(
+        painterResource(R.drawable.owntv_wordmark_own),
+        contentDescription = null,
+        modifier = Modifier.fillMaxSize(),
+        colorFilter = ColorFilter.tint(own),
+    )
+    Image(
+        painterResource(R.drawable.owntv_wordmark_tv),
+        contentDescription = null,
+        modifier = Modifier.fillMaxSize(),
+        colorFilter = ColorFilter.tint(tv),
+    )
+  }'''
 
-      - name: Build debug APK
-        run: |
-          chmod +x ./gradlew
-          ./gradlew assembleDebug -x verifyI18nLiterals
+      text = text[:start] + replacement + text[end:]
+      p.write_text(text, encoding="utf-8")
+      PY
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ProPlayer-debug
-          path: "**/build/outputs/apk/debug/*.apk"
-          if-no-files-found: error
+  - name: Update branding references
+    run: |
+      set -e
+      python3 - <<'PY'
+      from pathlib import Path
+
+      root = Path(".")
+      for p in root.rglob("*"):
+          if not p.is_file() or ".git" in p.parts:
+              continue
+          if any(part.startswith("build") for part in p.parts):
+              continue
+          try:
+              text = p.read_text(encoding="utf-8")
+          except (UnicodeDecodeError, OSError):
+              continue
+
+          updated = text.replace(
+              "https://t.me/owntv",
+              "https://t.me/promaxsatdz"
+          ).replace(
+              "https://github.com/ahXN00/OwnTV",
+              "https://github.com/najii04/ProPlayer"
+          )
+
+          if updated != text:
+              p.write_text(updated, encoding="utf-8")
+      PY
+
+  - name: Set up Java
+    uses: actions/setup-java@v4
+    with:
+      distribution: temurin
+      java-version: "17"
+
+  - name: Build debug APK
+    run: |
+      chmod +x ./gradlew
+      ./gradlew assembleDebug -x verifyI18nLiterals
+
+  - name: Upload APK
+    uses: actions/upload-artifact@v4
+    with:
+      name: ProPlayer-debug
+      path: "**/build/outputs/apk/debug/*.apk"
+      if-no-files-found: error
