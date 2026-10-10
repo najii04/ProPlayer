@@ -13,8 +13,6 @@ jobs:
     steps:
       - name: Checkout ProPlayer
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download OwnTV source
         run: |
@@ -30,7 +28,7 @@ jobs:
           SRC="$(find /tmp/source -mindepth 1 -maxdepth 1 -type d | head -n 1)"
           test -n "$SRC"
 
-          cp -a "$SRC"/. .
+          rsync -a --exclude='.github/workflows/' "$SRC"/ ./
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
