@@ -1,162 +1,22 @@
 
-name: Rebrand and Build Pro Player
-
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-
-permissions:
-  contents: read
-
-jobs:
-  rebrand:
-    name: Build Pro Player APK
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout ProPlayer
-        uses: actions/checkout@v4
-
-      - name: Extract modified source ZIP
+      - name: Derive the release edge key
+        env:
+          OWNTV_EDGE_MASTER: ${{ secrets.OWNTV_EDGE_MASTER }}
+          OWNTV_EDGE_KEY: ${{ secrets.OWNTV_EDGE_KEY }}
+          VERSION_NAME: "ProPlayer"
         shell: bash
         run: |
           set -euo pipefail
-
-          ZIP="ProPlayer-rebranded-source.zip"
-          test -f "$ZIP"
-
-          mkdir -p /tmp/rebranded
-          unzip -q "$ZIP" -d /tmp/rebranded
-
-          ROOT="$(find /tmp/rebranded -name settings.gradle.kts -type f -print -quit)"
-          test -n "$ROOT"
-
-          SRC="$(dirname "$ROOT")"
-
-          rsync -a --delete \
-            --exclude='.git/' \
-            --exclude='.github/workflows/' \
-            "$SRC"/ ./
-
-      - name: Fix Pro Player wordmark
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          p = Path("app/src/main/java/tv/own/owntv/ui/components/BrandLockup.kt")
-          text = p.read_text(encoding="utf-8")
-
-          text = text.replace("import androidx.compose.material3.Text\n", "")
-          text = text.replace("import androidx.compose.ui.text.font.FontWeight\n", "")
-          text = text.replace("import androidx.compose.ui.unit.sp\n", "")
-
-          marker = "fun Wordmark("
-          if marker not in text:
-              raise SystemExit("Wordmark function was not found.")
-
-          start = text.index("    Box(\n", text.index(marker))
-          end = text.index("\n}\n", start)
-
-          replacement = "\n".join([
-              "    Box(modifier.width(width).height(width * 182f / 988f)) {",
-              "        Image(",
-              "            painterResource(R.drawable.owntv_wordmark_own),",
-              "            contentDescription = null,",
-              "            modifier = Modifier.fillMaxSize(),",
-              "            colorFilter = ColorFilter.tint(own),",
-              "        )",
-              "        Image(",
-              "            painterResource(R.drawable.owntv_wordmark_tv),",
-              "            contentDescription = null,",
-              "            modifier = Modifier.fillMaxSize(),",
-              "            colorFilter = ColorFilter.tint(tv),",
-              "        )",
-              "    }",
-          ])
-
-          text = text[:start] + replacement + text[end:]
-          p.write_text(text, encoding="utf-8")
-          PY
-
-      - name: Update branding references
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          root = Path(".")
-          for p in root.rglob("*"):
-              if not p.is_file() or ".git" in p.parts:
-                  continue
-              if any(part.startswith("build") for part in p.parts):
-                  continue
-
-              try:
-                  text = p.read_text(encoding="utf-8")
-              except (UnicodeDecodeError, OSError):
-                  continue
-
-              updated = text.replace(
-                  "https://t.me/owntv",
-                  "https://t.me/promaxsatdz"
-              ).replace(
-                  "https://github.com/ahXN00/OwnTV",
-                  "https://github.com/najii04/ProPlayer"
-              )
-
-              if updated != text:
-                  p.write_text(updated, encoding="utf-8")
-          PY
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Build debug APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x ./gradlew
-          ./gradlew assembleDebug -x verifyI18nLiterals --stacktrace
-
-      - name: Find APK files
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mkdir -p /tmp/proplayer-apks
-
-          echo "Searching for generated APK files..."
-          find . -type f -path '*/build/outputs/apk/*' -name '*.apk' -print
-
-          find . -type f -path '*/build/outputs/apk/*' -name '*.apk' \
-            -exec cp {} /tmp/proplayer-apks/ \;
-
-          if ! find /tmp/proplayer-apks -maxdepth 1 -type f -name '*.apk' | grep -q .; then
-            echo "No APK files were generated."
-            find . -type f -path '*/build/outputs/*' -print || true
-            exit 1
+          if [ -n "$OWNTV_EDGE_MASTER" ]; then
+            KEY=$(printf '%s' "$VERSION_NAME" \
+              | openssl dgst -sha256 -hmac "$OWNTV_EDGE_MASTER" -hex \
+              | awk '{print $NF}')
+            echo "::add-mask::$KEY"
+            echo "OWNTV_EDGE_KEY=$KEY" >> "$GITHUB_ENV"
+          elif [ -n "$OWNTV_EDGE_KEY" ]; then
+            echo "::add-mask::$OWNTV_EDGE_KEY"
+            echo "OWNTV_EDGE_KEY=$OWNTV_EDGE_KEY" >> "$GITHUB_ENV"
+          else
+            echo "No edge key configured; using the default base URL."
           fi
-
-          echo "APK files found:"
-          ls -lh /tmp/proplayer-apks/
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ProPlayer-debug
-          path: /tmp/proplayer-apks/*.apk
-          if-no-files-found: error
-          retention-days: 7
+          
